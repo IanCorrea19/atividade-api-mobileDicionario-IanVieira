@@ -44,29 +44,42 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun buscarCoordenadasDaCidade(city: String) {
-        val geoUrl = "https://geocoding-api.open-meteo.com/v1/search?name=${city.replace(" ", "+")}&count=1&language=pt"
+        private fun buscarCoordenadasDaCidade(city: String) {
+        val geoUrl = "https://geocoding-api.open-meteo.com/v1/search?name=${city.replace(" ", "+")}&count=5&language=pt"
         val queue = Volley.newRequestQueue(this)
 
         val request = JsonObjectRequest(Request.Method.GET, geoUrl, null,
             { response ->
                 try {
                     if (response.has("results")) {
-                        val location = response.getJSONArray("results").getJSONObject(0)
+                        val resultsArray = response.getJSONArray("results")
 
-                        val lat = location.getDouble("latitude")
-                        val lon = location.getDouble("longitude")
-                        val timezone = location.getString("timezone")
+                        // Se a API achou apenas 1 cidade, vai direto para o clima
+                        if (resultsArray.length() == 1) {
+                            val location = resultsArray.getJSONObject(0)
+                            processarCidadeEscolhida(location)
+                        } else {
+                            // Se achou mais de 1, monta uma lista de opções para o Pop-up
+                            val opcoesCidades = Array(resultsArray.length()) { "" }
 
-                        // Extraindo os detalhes para formatar (Ex: Itaperuna, Rio de Janeiro, Brasil)
-                        val name = location.getString("name")
-                        val state = location.optString("admin1", "")
-                        val country = location.optString("country", "")
+                            for (i in 0 until resultsArray.length()) {
+                                val loc = resultsArray.getJSONObject(i)
+                                val name = loc.getString("name")
+                                val state = loc.optString("admin1", "")
+                                val country = loc.optString("country", "")
 
-                        val fullLocation = if (state.isNotEmpty()) "$name, $state, $country" else "$name, $country"
+                                opcoesCidades[i] = if (state.isNotEmpty()) "$name, $state, $country" else "$name, $country"
+                            }
 
-                        // Com as coordenadas e o nome formatado em mãos, busca o clima!
-                        buscarClimaExato(lat, lon, timezone, fullLocation)
+                            // Cria e mostra o Pop-up nativo do Android
+                            val builder = android.app.AlertDialog.Builder(this)
+                            builder.setTitle("Qual destas cidades?")
+                            builder.setItems(opcoesCidades) { _, which ->
+                                val locationEscolhida = resultsArray.getJSONObject(which)
+                                processarCidadeEscolhida(locationEscolhida)
+                            }
+                            builder.show()
+                        }
                     } else {
                         Toast.makeText(this, "Cidade não encontrada.", Toast.LENGTH_LONG).show()
                     }
@@ -81,6 +94,22 @@ class MainActivity : AppCompatActivity() {
         queue.add(request)
     }
 
+    // Função Auxiliar
+    private fun processarCidadeEscolhida(location: org.json.JSONObject) {
+        val lat = location.getDouble("latitude")
+        val lon = location.getDouble("longitude")
+        val timezone = location.getString("timezone")
+
+        val name = location.getString("name")
+        val state = location.optString("admin1", "")
+        val country = location.optString("country", "")
+
+        val fullLocation = if (state.isNotEmpty()) "$name, $state, $country" else "$name, $country"
+
+        buscarClimaExato(lat, lon, timezone, fullLocation)
+    }
+
+    // Função 2: Pega o clima baseado nas coordenadas
     private fun buscarClimaExato(lat: Double, lon: Double, timezone: String, fullLocation: String) {
         val weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current_weather=true"
         val queue = Volley.newRequestQueue(this)
@@ -93,7 +122,6 @@ class MainActivity : AppCompatActivity() {
                     val temperature = currentWeather.getDouble("temperature")
                     val windSpeed = currentWeather.getDouble("windspeed")
 
-                    // Lógica para mudar o ícone dependendo da temperatura!
                     val weatherEmoji = when {
                         temperature >= 30 -> "☀️🥵"
                         temperature in 20.0..29.9 -> "⛅😎"
@@ -101,7 +129,6 @@ class MainActivity : AppCompatActivity() {
                         else -> "❄️🥶"
                     }
 
-                    // Atualiza a tela com as informações
                     tvLocationFull.text = fullLocation
                     tvWeatherIcon.text = weatherEmoji
                     tvTemperature.text = "Temperatura: $temperature °C"
