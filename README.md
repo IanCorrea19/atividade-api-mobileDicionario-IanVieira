@@ -40,13 +40,13 @@ Aplicativo mobile nativo desenvolvido para consulta de vocabulário em inglês. 
 
 ## Prints do Aplicativo
 
-### Interface em Inglês (Aguardando Busca)
+### Interface em Inglês
 ![Antes da pesquisa - Inglês](Prints/Antes%20da%20pesquisa%20-%20Ingles.png)
 
-### Interface em Português (Aguardando Busca)
+### Interface em Português
 ![Antes da pesquisa - Português](Prints/Antes%20da%20pesquisa%20-%20Portugues.png)
 
-### Resultado da Pesquisa (Múltiplas Definições)
+### Resultado da Pesquisa
 ![Pesquisa Feita - Requiem](Prints/Pesquisa%20feita.png)
 
 ---
