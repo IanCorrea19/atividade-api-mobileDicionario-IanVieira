@@ -10,10 +10,14 @@ import com.android.volley.Request
 import com.android.volley.toolbox.JsonArrayRequest
 import com.android.volley.toolbox.Volley
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import android.widget.TextView
 
 class MainActivity : AppCompatActivity() {
 
+    private lateinit var tvAppTitle: TextView
+    private lateinit var btnToggleLanguage: Button
+    private lateinit var textInputLayout: TextInputLayout
     private lateinit var etWord: TextInputEditText
     private lateinit var btnSearch: Button
     private lateinit var tvWordResult: TextView
@@ -21,11 +25,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvPartOfSpeech: TextView
     private lateinit var tvDefinition: TextView
 
+    private var isEnglish = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Conectando os elementos da tela
+        tvAppTitle = findViewById(R.id.tvAppTitle)
+        btnToggleLanguage = findViewById(R.id.btnToggleLanguage)
+        textInputLayout = findViewById(R.id.textInputLayout)
         etWord = findViewById(R.id.etWord)
         btnSearch = findViewById(R.id.btnSearch)
         tvWordResult = findViewById(R.id.tvWordResult)
@@ -33,16 +41,21 @@ class MainActivity : AppCompatActivity() {
         tvPartOfSpeech = findViewById(R.id.tvPartOfSpeech)
         tvDefinition = findViewById(R.id.tvDefinition)
 
+
+        btnToggleLanguage.setOnClickListener {
+            isEnglish = !isEnglish
+            atualizarTextosDaInterface()
+        }
+
         btnSearch.setOnClickListener {
             val word = etWord.text.toString().trim()
 
-            // Validação de campo vazio
             if (word.isEmpty()) {
-                Toast.makeText(this, "Please, type a word!", Toast.LENGTH_SHORT).show()
+                val msgVazio = if (isEnglish) "Please, type a word!" else "Por favor, digite uma palavra!"
+                Toast.makeText(this, msgVazio, Toast.LENGTH_SHORT).show()
             } else {
-                // Truque visual: Botão vermelho e bloqueado durante a busca
                 btnSearch.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#E53935"))
-                btnSearch.text = "Searching..."
+                btnSearch.text = if (isEnglish) "Searching..." else "Buscando..."
                 btnSearch.isEnabled = false
 
                 buscarPalavra(word)
@@ -50,64 +63,101 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Função Auxiliar: Restaura a cor do botão
+    private fun atualizarTextosDaInterface() {
+        if (isEnglish) {
+            btnToggleLanguage.text = "PT-BR"
+            tvAppTitle.text = "English Dictionary"
+            textInputLayout.hint = "Type a word in English (Ex: engineer)"
+            btnSearch.text = "Search Word"
+
+            if (tvPhonetic.text == "/.../") {
+                tvWordResult.text = "Waiting for a word..."
+                tvPartOfSpeech.text = "Part of Speech: -"
+                tvDefinition.text = "Definition: -"
+            }
+        } else {
+            btnToggleLanguage.text = "EN"
+            tvAppTitle.text = "Dicionário de Inglês"
+            textInputLayout.hint = "Digite uma palavra em inglês (Ex: engineer)"
+            btnSearch.text = "Buscar Palavra"
+
+            if (tvPhonetic.text == "/.../") {
+                tvWordResult.text = "Aguardando uma palavra..."
+                tvPartOfSpeech.text = "Classe Gramatical: -"
+                tvDefinition.text = "Definição: -"
+            }
+        }
+    }
+
     private fun restaurarBotao() {
-        btnSearch.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#673AB7")) // Roxo padrão
-        btnSearch.text = "Search Word"
+        btnSearch.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#673AB7"))
+        btnSearch.text = if (isEnglish) "Search Word" else "Buscar Palavra"
         btnSearch.isEnabled = true
     }
 
     private fun buscarPalavra(word: String) {
-        // A URL da API gratuita de Dicionário
         val url = "https://api.dictionaryapi.dev/api/v2/entries/en/${word.lowercase()}"
         val queue = Volley.newRequestQueue(this)
 
-        // Atenção: Esta API retorna um Array JSON na raiz, por isso usamos JsonArrayRequest
         val request = JsonArrayRequest(Request.Method.GET, url, null,
             { response ->
                 try {
-                    // Pega o primeiro item do array (a palavra principal)
                     val firstEntry = response.getJSONObject(0)
 
-                    // Extrai a Palavra e a Fonética
                     val wordText = firstEntry.getString("word")
                     val phonetic = firstEntry.optString("phonetic", "Phonetic not available")
 
-                    // Entra na lista de significados (Meanings)
+                    // Pega o primeiro grupo de significados (ex: Substantivo)
                     val meanings = firstEntry.getJSONArray("meanings")
                     val firstMeaning = meanings.getJSONObject(0)
-
-                    // Extrai a Classe Gramatical (Noun, Verb, Adjective...)
                     val partOfSpeech = firstMeaning.getString("partOfSpeech")
 
-                    // Extrai a primeira Definição
-                    val definitions = firstMeaning.getJSONArray("definitions")
-                    val definitionText = definitions.getJSONObject(0).getString("definition")
+                    // Lista de definições
+                    val definitionsArray = firstMeaning.getJSONArray("definitions")
 
-                    // Exibe tudo na tela
+                    // Ferramenta do Kotlin para juntar vários textos de forma otimizada
+                    val definicoesJuntas = StringBuilder()
+
+                    // Lógica para pegar até 3 definições (para caber bonito na tela)
+                    val limite = if (definitionsArray.length() > 3) 3 else definitionsArray.length()
+
+                    for (i in 0 until limite) {
+                        val defObj = definitionsArray.getJSONObject(i)
+                        val textoDefinicao = defObj.getString("definition")
+
+                        // Adiciona o número (1., 2., 3.) e o texto, pulando duas linhas no final
+                        definicoesJuntas.append("${i + 1}. $textoDefinicao\n\n")
+                    }
+
+                    val labelPart = if (isEnglish) "Part of Speech: " else "Classe: "
+                    val labelDef = if (isEnglish) "Definitions:\n" else "Definições:\n"
+
                     tvWordResult.text = wordText.replaceFirstChar { it.uppercase() }
                     tvPhonetic.text = phonetic
-                    tvPartOfSpeech.text = "Part of Speech: ${partOfSpeech.uppercase()}"
-                    tvDefinition.text = "Definition: $definitionText"
+                    tvPartOfSpeech.text = "$labelPart${partOfSpeech.uppercase()}"
 
-                    restaurarBotao() // Sucesso! Volta o botão ao normal
+                    // Remove os espaços extras do final e exibe na tela
+                    tvDefinition.text = "$labelDef${definicoesJuntas.toString().trim()}"
+
+                    restaurarBotao()
 
                 } catch (e: Exception) {
-                    Toast.makeText(this, "Error reading dictionary data.", Toast.LENGTH_SHORT).show()
+                    val msgErroJson = if (isEnglish) "Error reading data." else "Erro ao ler dados."
+                    Toast.makeText(this, msgErroJson, Toast.LENGTH_SHORT).show()
                     restaurarBotao()
                 }
             },
             { error ->
-                // O Volley joga erro 404 se a palavra não existir no dicionário
-                Toast.makeText(this, "Word not found! Try another one.", Toast.LENGTH_LONG).show()
+                val msgNaoEncontrada = if (isEnglish) "Word not found! Try another one." else "Palavra não encontrada! Tente outra."
+                Toast.makeText(this, msgNaoEncontrada, Toast.LENGTH_LONG).show()
 
-                // Limpa a tela se a palavra não existir
-                tvWordResult.text = "Word not found"
-                tvPhonetic.text = ""
-                tvPartOfSpeech.text = ""
-                tvDefinition.text = ""
+                val textoVazio = if (isEnglish) "Word not found" else "Palavra não encontrada"
+                tvWordResult.text = textoVazio
+                tvPhonetic.text = "/.../"
+                tvPartOfSpeech.text = if (isEnglish) "Part of Speech: -" else "Classe Gramatical: -"
+                tvDefinition.text = if (isEnglish) "Definitions: -" else "Definições: -"
 
-                restaurarBotao() // Volta o botão ao normal
+                restaurarBotao()
             }
         )
         queue.add(request)
