@@ -12,9 +12,10 @@ import android.widget.TextView
 
 class MainActivity : AppCompatActivity() {
 
-    // Declarando as variáveis da tela
     private lateinit var etCityName: TextInputEditText
     private lateinit var btnSearchWeather: Button
+    private lateinit var tvLocationFull: TextView
+    private lateinit var tvWeatherIcon: TextView
     private lateinit var tvTemperature: TextView
     private lateinit var tvWind: TextView
     private lateinit var tvTimezone: TextView
@@ -23,28 +24,26 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // 1. Conectando com os novos IDs do XML do Material Design
         etCityName = findViewById(R.id.etCityName)
         btnSearchWeather = findViewById(R.id.btnSearchWeather)
+        tvLocationFull = findViewById(R.id.tvLocationFull)
+        tvWeatherIcon = findViewById(R.id.tvWeatherIcon)
         tvTemperature = findViewById(R.id.tvTemperature)
         tvWind = findViewById(R.id.tvWind)
         tvTimezone = findViewById(R.id.tvTimezone)
 
-        // 2. Ação do Botão
         btnSearchWeather.setOnClickListener {
             val city = etCityName.text.toString().trim()
 
-            // 3. Validação de campo vazio (Regra da N1)
             if (city.isEmpty()) {
                 Toast.makeText(this, "Por favor, digite o nome de uma cidade!", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(this, "Buscando o clima de $city...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Buscando o clima...", Toast.LENGTH_SHORT).show()
                 buscarCoordenadasDaCidade(city)
             }
         }
     }
 
-    // Função 1: Acha a Latitude e Longitude da cidade digitada
     private fun buscarCoordenadasDaCidade(city: String) {
         val geoUrl = "https://geocoding-api.open-meteo.com/v1/search?name=${city.replace(" ", "+")}&count=1&language=pt"
         val queue = Volley.newRequestQueue(this)
@@ -59,8 +58,15 @@ class MainActivity : AppCompatActivity() {
                         val lon = location.getDouble("longitude")
                         val timezone = location.getString("timezone")
 
-                        // Com as coordenadas em mãos, busca o clima!
-                        buscarClimaExato(lat, lon, timezone)
+                        // Extraindo os detalhes para formatar (Ex: Itaperuna, Rio de Janeiro, Brasil)
+                        val name = location.getString("name")
+                        val state = location.optString("admin1", "")
+                        val country = location.optString("country", "")
+
+                        val fullLocation = if (state.isNotEmpty()) "$name, $state, $country" else "$name, $country"
+
+                        // Com as coordenadas e o nome formatado em mãos, busca o clima!
+                        buscarClimaExato(lat, lon, timezone, fullLocation)
                     } else {
                         Toast.makeText(this, "Cidade não encontrada.", Toast.LENGTH_LONG).show()
                     }
@@ -75,8 +81,7 @@ class MainActivity : AppCompatActivity() {
         queue.add(request)
     }
 
-    // Função 2: Pega o clima baseado nas coordenadas (A base perfeita para a N2)
-    private fun buscarClimaExato(lat: Double, lon: Double, timezone: String) {
+    private fun buscarClimaExato(lat: Double, lon: Double, timezone: String, fullLocation: String) {
         val weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current_weather=true"
         val queue = Volley.newRequestQueue(this)
 
@@ -85,11 +90,20 @@ class MainActivity : AppCompatActivity() {
                 try {
                     val currentWeather = response.getJSONObject("current_weather")
 
-                    // Extrai as 3 informações úteis exigidas
                     val temperature = currentWeather.getDouble("temperature")
                     val windSpeed = currentWeather.getDouble("windspeed")
 
-                    // Exibe na tela com o novo layout
+                    // Lógica para mudar o ícone dependendo da temperatura!
+                    val weatherEmoji = when {
+                        temperature >= 30 -> "☀️🥵"
+                        temperature in 20.0..29.9 -> "⛅😎"
+                        temperature in 10.0..19.9 -> "☁️🧥"
+                        else -> "❄️🥶"
+                    }
+
+                    // Atualiza a tela com as informações
+                    tvLocationFull.text = fullLocation
+                    tvWeatherIcon.text = weatherEmoji
                     tvTemperature.text = "Temperatura: $temperature °C"
                     tvWind.text = "Vento: $windSpeed km/h"
                     tvTimezone.text = "Fuso Horário: $timezone"
